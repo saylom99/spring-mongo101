@@ -23,39 +23,51 @@ public class TransactionService {
     private MongoTemplate mongoTemplate;
 
     public List<Transaction> getTransactionsByMonth(int year, int month) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(year, month - 1, 1, 0, 0, 0);
-        Date startDate = calendar.getTime();
 
-        calendar.set(year, month - 1, calendar.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59);
-        Date endDate = calendar.getTime();
+        LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0, 0);
+        LocalDateTime endOfMonth = startOfMonth.with(TemporalAdjusters.lastDayOfMonth())
+                .withHour(23)
+                .withMinute(59)
+                .withSecond(59);
 
-        return transactionRepository.findByDateBetween(startDate, endDate);
+        return transactionRepository.findByDateBetween(startOfMonth, endOfMonth);
     }
 
     public Map<String, Object> getMonthlySummary(int year, int month) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(year, month - 1, 1, 0, 0, 0);
-        Date startDate = calendar.getTime();
+        LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0, 0);
+        LocalDateTime endOfMonth = startOfMonth.with(TemporalAdjusters.lastDayOfMonth())
+                .withHour(23)
+                .withMinute(59)
+                .withSecond(59);
 
-        calendar.set(year, month - 1, calendar.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59);
-        Date endDate = calendar.getTime();
 
         Aggregation aggregation = Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("date").gte(startDate).lte(endDate)),
+                Aggregation.match(
+                        Criteria.where("date").gte(startOfMonth).lte(endOfMonth)
+                ),
                 Aggregation.group()
                         .sum("amount").as("totalAmount")
                         .count().as("count")
         );
 
-        AggregationResults<Document> results = mongoTemplate.aggregate(
-                aggregation, "transactions", Document.class
-        );
+        Document result = mongoTemplate.aggregate(
+                aggregation,
+                "transactions",
+                Document.class
+        ).getUniqueMappedResult();
 
-        Document result = results.getUniqueMappedResult();
+
         Map<String, Object> summary = new HashMap<>();
-        summary.put("totalAmount", result != null ? result.get("totalAmount") : 0);
-        summary.put("count", result != null ? result.get("count") : 0);
+        if (result != null) {
+            Number totalAmount = (Number) result.get("totalAmount");
+            Number count = (Number) result.get("count");
+
+            summary.put("totalAmount", totalAmount != null ? totalAmount.doubleValue() : 0.0);
+            summary.put("count", count != null ? count.longValue() : 0L);
+        } else {
+            summary.put("totalAmount", 0.0);
+            summary.put("count", 0L);
+        }
 
         return summary;
     }
