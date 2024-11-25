@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.*;
 import org.springframework.stereotype.*;
 
+import java.math.*;
 import java.time.*;
 import java.time.temporal.*;
 import java.util.*;
@@ -96,15 +97,31 @@ public class TransactionService {
         ).getMappedResults();
 
 
-        double total = results.stream()
-                .mapToDouble(doc -> ((Number) doc.get("count")).doubleValue())
-                .sum();
+        BigDecimal total = results.stream()
+                .map(doc -> getBigDecimal(doc.get("count")))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
 
         return results.stream()
-                .map(doc -> TypeDistributionDTO.builder()
-                        .type(doc.getString("type"))
-                        .percentage(((Number) doc.get("count")).doubleValue() / total * 100)
-                        .build())
+                .map(doc -> {
+                    BigDecimal count = getBigDecimal(doc.get("count"));
+                    BigDecimal percentage = total.equals(BigDecimal.ZERO)
+                            ? BigDecimal.ZERO
+                            : count.multiply(new BigDecimal("100"))
+                            .divide(total, 2, RoundingMode.HALF_UP);
+
+                    return TypeDistributionDTO.builder()
+                            .type(doc.getString("type"))
+                            .percentage(percentage.doubleValue())
+                            .build();
+                })
                 .collect(Collectors.toList());
+    }
+
+    private BigDecimal getBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        return new BigDecimal(((Number) value).toString());
     }
 }
