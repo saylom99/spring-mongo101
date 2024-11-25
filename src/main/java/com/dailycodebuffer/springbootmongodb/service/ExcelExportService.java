@@ -48,13 +48,26 @@ public class ExcelExportService {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             XSSFSheet sheet = workbook.createSheet("Summary");
 
+            // Create header row
             Row headerRow = sheet.createRow(0);
-            headerRow.createCell(0).setCellValue("Total Amount");
-            headerRow.createCell(1).setCellValue(((Number) summary.get("totalAmount")).doubleValue());
+            headerRow.createCell(0).setCellValue("Transaction Type");
+            headerRow.createCell(1).setCellValue("Amount");
+            headerRow.createCell(2).setCellValue("Count");
 
-            Row countRow = sheet.createRow(1);
-            countRow.createCell(0).setCellValue("Transaction Count");
-            countRow.createCell(1).setCellValue(((Number) summary.get("count")).longValue());
+            // Add type-wise details
+            List<Map<String, Object>> types = (List<Map<String, Object>>) summary.get("types");
+            int rowNum = 1;
+            for (Map<String, Object> type : types) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue((String) type.get("type"));
+                row.createCell(1).setCellValue((Double) type.get("totalAmount"));
+                row.createCell(2).setCellValue((Long) type.get("count"));
+            }
+
+            // Auto-size columns
+            for (int i = 0; i < 3; i++) {
+                sheet.autoSizeColumn(i);
+            }
 
             return writeWorkbookToByteArray(workbook);
         } catch (Exception e) {

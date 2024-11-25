@@ -41,35 +41,33 @@ public class TransactionService {
                 .withMinute(59)
                 .withSecond(59);
 
-
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(
                         Criteria.where("date").gte(startOfMonth).lte(endOfMonth)
                 ),
-                Aggregation.group()
+                Aggregation.group("type")
                         .sum("amount").as("totalAmount")
                         .count().as("count")
         );
 
-        Document result = mongoTemplate.aggregate(
+        AggregationResults<Document> results = mongoTemplate.aggregate(
                 aggregation,
                 "transactions",
                 Document.class
-        ).getUniqueMappedResult();
-
+        );
 
         Map<String, Object> summary = new HashMap<>();
-        if (result != null) {
-            Number totalAmount = (Number) result.get("totalAmount");
-            Number count = (Number) result.get("count");
+        List<Map<String, Object>> typeDetails = new ArrayList<>();
 
-            summary.put("totalAmount", totalAmount != null ? totalAmount.doubleValue() : 0.0);
-            summary.put("count", count != null ? count.longValue() : 0L);
-        } else {
-            summary.put("totalAmount", 0.0);
-            summary.put("count", 0L);
+        for (Document result : results) {
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("type", result.getString("_id"));
+            detail.put("totalAmount", ((Number) result.get("totalAmount")).doubleValue());
+            detail.put("count", ((Number) result.get("count")).longValue());
+            typeDetails.add(detail);
         }
 
+        summary.put("types", typeDetails);
         return summary;
     }
 
