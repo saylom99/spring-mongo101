@@ -12,9 +12,9 @@ import java.util.*;
 @RestController
 @RequestMapping("/api")
 public class ReportController {
-
     @Autowired
     private TransactionService transactionService;
+
 
     @GetMapping("/transactions")
     public ResponseEntity<List<Transaction>> getTransactions(
