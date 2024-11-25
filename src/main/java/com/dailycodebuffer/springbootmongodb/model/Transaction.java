@@ -4,14 +4,14 @@ import lombok.*;
 import org.springframework.data.annotation.*;
 import org.springframework.data.mongodb.core.mapping.*;
 
-import java.util.*;
+import java.time.*;
 
 @Document(collection = "transactions")
 @Data
 public class Transaction {
     @Id
     private String id;
-    private Date date;
+    private LocalDateTime date;
     private String type;
     private Double amount;
 

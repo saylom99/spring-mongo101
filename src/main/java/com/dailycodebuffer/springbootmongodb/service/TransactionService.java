@@ -10,6 +10,8 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.*;
 import org.springframework.stereotype.*;
 
+import java.time.*;
+import java.time.temporal.*;
 import java.util.*;
 import java.util.stream.*;
 
@@ -59,38 +61,38 @@ public class TransactionService {
     }
 
     public List<TypeDistributionDTO> getTypeDistribution(int year, int month) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(year, month - 1, 1, 0, 0, 0);
-        Date startDate = calendar.getTime();
-
-        calendar.set(year, month - 1, calendar.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59);
-        Date endDate = calendar.getTime();
+        LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0, 0);
+        LocalDateTime endOfMonth = startOfMonth.with(TemporalAdjusters.lastDayOfMonth())
+                .withHour(23)
+                .withMinute(59)
+                .withSecond(59);
 
         Aggregation aggregation = Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("date").gte(startDate).lte(endDate)),
-                Aggregation.group("type").count().as("count"),
-                Aggregation.project()
+                Aggregation.match(
+                        Criteria.where("date").gte(startOfMonth).lte(endOfMonth)
+                ),
+                Aggregation.group("type")
+                        .count().as("count"),
+                Aggregation.project("count")
                         .and("_id").as("type")
-                        .and("count").as("count")
         );
 
-        AggregationResults<Document> results = mongoTemplate.aggregate(
-                aggregation, "transactions", Document.class
-        );
+        List<Document> results = mongoTemplate.aggregate(
+                aggregation,
+                "transactions",
+                Document.class
+        ).getMappedResults();
 
-        List<Document> documents = results.getMappedResults();
-        double total = documents.stream()
+
+        double total = results.stream()
                 .mapToDouble(doc -> ((Number) doc.get("count")).doubleValue())
                 .sum();
 
-        return documents.stream()
-                .map(doc -> {
-                    TypeDistributionDTO dto = new TypeDistributionDTO();
-                    dto.setType(doc.getString("type"));
-                    double percentage = (((Number) doc.get("count")).doubleValue() / total) * 100;
-                    dto.setPercentage(percentage);
-                    return dto;
-                })
+        return results.stream()
+                .map(doc -> TypeDistributionDTO.builder()
+                        .type(doc.getString("type"))
+                        .percentage(((Number) doc.get("count")).doubleValue() / total * 100)
+                        .build())
                 .collect(Collectors.toList());
     }
 }
